@@ -1,10 +1,16 @@
 import mongoose from "mongoose";
 
-const MONGODB_URI = process.env.MONGODB_URI!;
+function getMongoUri(): string {
+  const value = process.env["MONGODB_URI"];
 
-if (!MONGODB_URI) {
-  throw new Error("Please define the MONGODB_URI in .env.local");
+  if (!value) {
+    throw new Error("Missing MONGODB_URI in environment variables");
+  }
+
+  return value;
 }
+
+const mongoUri = getMongoUri();
 
 type MongooseCache = {
   conn: typeof mongoose | null;
@@ -15,20 +21,27 @@ declare global {
   var mongooseCache: MongooseCache | undefined;
 }
 
-const cached: MongooseCache = global.mongooseCache || {
-  conn: null,
-  promise: null,
+const globalForMongoose = globalThis as typeof globalThis & {
+  mongooseCache?: MongooseCache;
 };
 
-if (!global.mongooseCache) {
-  global.mongooseCache = cached;
+const cached: MongooseCache =
+  globalForMongoose.mongooseCache ?? {
+    conn: null,
+    promise: null,
+  };
+
+if (!globalForMongoose.mongooseCache) {
+  globalForMongoose.mongooseCache = cached;
 }
 
 export async function connectDB() {
-  if (cached.conn) return cached.conn;
+  if (cached.conn) {
+    return cached.conn;
+  }
 
   if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGODB_URI);
+    cached.promise = mongoose.connect(mongoUri);
   }
 
   cached.conn = await cached.promise;
